@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kisisel Asistan - Giris</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        * { font-family: 'Inter', sans-serif; }
+        
+        .glass {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center p-4">
+    
+    <div class="w-full max-w-md">
+        <div class="text-center mb-8">
+            <div class="w-20 h-20 gradient-bg rounded-2xl mx-auto mb-4 flex items-center justify-center text-white text-3xl shadow-lg">
+                <i class="fas fa-user-shield"></i>
+            </div>
+            <h1 class="text-2xl font-bold text-gray-800">Kisisel Asistan</h1>
+            <p class="text-gray-500">Giris yaparak devam edin</p>
+        </div>
+
+        <div class="glass rounded-2xl p-8 shadow-xl">
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-600 mb-1">Sifre</label>
+                        <div class="relative">
+                            <i class="fas fa-lock absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                            <input type="password" id="sifre" required
+                                class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                                placeholder="Sifrenizi girin">
+                        </div>
+                        <p class="text-xs text-gray-400 mt-1">Varsayilan: 1234</p>
+                    </div>
+                    
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" id="beni-hatirla" class="w-4 h-4 rounded border-gray-300">
+                        <label for="beni-hatirla" class="text-sm text-gray-600">Beni hatirla</label>
+                    </div>
+                    
+                    <button type="submit" class="w-full py-3 gradient-bg text-white rounded-lg font-medium hover:opacity-90 transition-opacity">
+                        Giris Yap
+                    </button>
+                </div>
+            </form>
+            
+            <div id="hata-mesaji" class="hidden mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm text-center">
+                Yanlis sifre!
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Sayfa yuklenince kontrol et
+        document.addEventListener('DOMContentLoaded', function() {
+            // Beni hatirla kontrolu
+            if (localStorage.getItem('beniHatirla') === 'true') {
+                document.getElementById('beni-hatirla').checked = true;
+            }
+            
+            // Zaten giris yapilmis mi?
+            if (sessionStorage.getItem('girisYapildi') === 'true') {
+                window.location.href = 'anasayfa.html';
+            }
+        });
+
+        function handleLogin(e) {
+            e.preventDefault();
+            var sifre = document.getElementById('sifre').value;
+            var hatirla = document.getElementById('beni-hatirla').checked;
+            
+            // Sifre kontrolu (varsayilan: 1234)
+            if (sifre === '250813') {
+                localStorage.setItem('beniHatirla', hatirla);
+                sessionStorage.setItem('girisYapildi', 'true');
+                window.location.href = 'anasayfa.html';
+            } else {
+                document.getElementById('hata-mesaji').classList.remove('hidden');
+                setTimeout(function() {
+                    document.getElementById('hata-mesaji').classList.add('hidden');
+                }, 3000);
+            }
+        }
+    </script>
+</body>
+</html>

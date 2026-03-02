@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Günlük İşler - Kişisel Asistan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        * { font-family: 'Inter', sans-serif; }
+        .glass { background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); border: 1px solid rgba(0,0,0,0.1); }
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .is-item { transition: all 0.3s ease; }
+        .is-item:hover { transform: translateX(5px); }
+        .is-item.tamamlandi { opacity: 0.6; text-decoration: line-through; }
+        .oncelik-yuksek { border-left: 4px solid #ef4444; }
+        .oncelik-orta { border-left: 4px solid #f59e0b; }
+        .oncelik-dusuk { border-left: 4px solid #10b981; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    
+    <header class="gradient-bg text-white shadow-lg">
+        <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+            <a href="anasayfa.html" class="flex items-center gap-3">
+                <i class="fas fa-arrow-left"></i>
+                <h1 class="text-xl font-bold">Günlük İşler</h1>
+            </a>
+            <div class="flex gap-2">
+                <button onclick="location.reload()" class="bg-white/20 px-3 py-2 rounded-lg" title="Yenile">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+                <button onclick="openModal()" class="bg-white/20 px-4 py-2 rounded-lg">
+                    <i class="fas fa-plus mr-2"></i>Yeni İş
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Filtreler -->
+    <div class="max-w-4xl mx-auto px-4 py-4">
+        <div class="flex gap-2 overflow-x-auto pb-2">
+            <button onclick="filterIsler('hepsi')" class="filtre-btn active px-4 py-2 bg-blue-600 text-white rounded-full text-sm whitespace-nowrap" data-filter="hepsi">Hepsi</button>
+            <button onclick="filterIsler('bekleyen')" class="filtre-btn px-4 py-2 bg-white text-gray-600 rounded-full text-sm whitespace-nowrap" data-filter="bekleyen">Bekleyen</button>
+            <button onclick="filterIsler('tamamlanan')" class="filtre-btn px-4 py-2 bg-white text-gray-600 rounded-full text-sm whitespace-nowrap" data-filter="tamamlanan">Tamamlanan</button>
+            <button onclick="filterIsler('bugun')" class="filtre-btn px-4 py-2 bg-white text-gray-600 rounded-full text-sm whitespace-nowrap" data-filter="bugun">Bugün</button>
+        </div>
+    </div>
+
+    <!-- Liste -->
+    <main class="max-w-4xl mx-auto px-4 pb-8">
+        <div id="is-listesi" class="space-y-3">
+            <p class="text-center text-gray-500 py-8">Yükleniyor...</p>
+        </div>
+        <div id="bos-mesaj" class="hidden text-center py-12">
+            <i class="fas fa-clipboard-check text-6xl text-gray-300 mb-4"></i>
+            <p class="text-gray-500">Henüz iş eklenmemiş</p>
+        </div>
+    </main>
+
+    <!-- Modal -->
+    <div id="modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
+        <div class="glass rounded-2xl p-6 w-full max-w-md">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Yeni İş Ekle</h2>
+            <form id="is-form" class="space-y-4">
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">İş Açıklaması</label>
+                    <input type="text" id="is-baslik" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" placeholder="Ne yapmanız gerekiyor?">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm text-gray-600 mb-1">Tarih</label>
+                        <input type="date" id="is-tarih" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-600 mb-1">Saat (Opsiyonel)</label>
+                        <input type="time" id="is-saat" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Öncelik</label>
+                    <select id="is-oncelik" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                        <option value="dusuk">Düşük</option>
+                        <option value="orta" selected>Orta</option>
+                        <option value="yuksek">Yüksek</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Kategori</label>
+                    <select id="is-kategori" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                        <option value="kisisel">Kişisel</option>
+                        <option value="is">İş</option>
+                        <option value="ev">Ev</option>
+                        <option value="saglik">Sağlık</option>
+                        <option value="egitim">Eğitim</option>
+                        <option value="diger">Diğer</option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                    <input type="checkbox" id="hatirlatma-ekle" class="w-4 h-4 rounded border-gray-300">
+                    <label for="hatirlatma-ekle" class="text-sm text-gray-700"><i class="fas fa-bell text-amber-500 mr-1"></i>Hatırlatma ekle</label>
+                </div>
+                <div class="flex gap-3 pt-4">
+                    <button type="button" onclick="closeModal()" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">İptal</button>
+                    <button type="submit" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Kaydet</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <script>
+        if (sessionStorage.getItem('girisYapildi') !== 'true') {
+            window.location.href = 'index.html';
+        }
+
+        // Firebase
+        var firebaseConfig = {
+            apiKey: "AIzaSyByyHF3X2mU4nB3tYJm9H3wnGbuXSqcfbk",
+            authDomain: "kisiselasistan-d8d06.firebaseapp.com",
+            databaseURL: "https://kisiselasistan-d8d06-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "kisiselasistan-d8d06",
+            storageBucket: "kisiselasistan-d8d06.firebasestorage.app",
+            messagingSenderId: "730314677424",
+            appId: "1:730314677424:web:4edb402170cd601f11af75"
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        var db = firebase.database();
+        var userId = 'benim_kullanici_id';
+        var islerRef = db.ref('users/' + userId + '/isler');
+        var hatirlatmalarRef = db.ref('users/' + userId + '/hatirlatmalar');
+        
+        var currentFilter = 'hepsi';
+
+        // Gerçek zamanlı dinleme
+        islerRef.on('value', function(snapshot) {
+            var isler = snapshot.val() || [];
+            localStorage.setItem('isler', JSON.stringify(isler));
+            renderIsler(isler);
+        });
+
+        function renderIsler(isler) {
+            var liste = document.getElementById('is-listesi');
+            var bosMesaj = document.getElementById('bos-mesaj');
+            
+            var filtered = isler;
+            if (currentFilter === 'bekleyen') {
+                filtered = isler.filter(function(i) { return !i.tamamlandi; });
+            } else if (currentFilter === 'tamamlanan') {
+                filtered = isler.filter(function(i) { return i.tamamlandi; });
+            } else if (currentFilter === 'bugun') {
+                var bugun = new Date().toISOString().split('T')[0];
+                filtered = isler.filter(function(i) { return i.tarih === bugun; });
+            }
+            
+            filtered.sort(function(a, b) { return new Date(b.tarih) - new Date(a.tarih); });
+            
+            if (filtered.length === 0) {
+                liste.innerHTML = '';
+                bosMesaj.classList.remove('hidden');
+                return;
+            }
+            
+            bosMesaj.classList.add('hidden');
+            
+            liste.innerHTML = filtered.map(function(is) {
+                return '<div class="glass rounded-xl p-4 is-item oncelik-' + is.oncelik + ' ' + (is.tamamlandi ? 'tamamlandi' : '') + '">' +
+                    '<div class="flex items-start gap-3">' +
+                        '<button onclick="toggleTamamlandi(\'' + is.id + '\')" class="w-6 h-6 rounded-full border-2 ' + (is.tamamlandi ? 'bg-green-500 border-green-500' : 'border-gray-300 hover:border-green-500') + ' flex items-center justify-center transition-colors flex-shrink-0 mt-1">' +
+                            (is.tamamlandi ? '<i class="fas fa-check text-white text-xs"></i>' : '') +
+                        '</button>' +
+                        '<div class="flex-1">' +
+                            '<div class="flex items-center gap-2 mb-1 flex-wrap">' +
+                                '<span class="text-lg ' + (is.tamamlandi ? 'line-through text-gray-500' : 'text-gray-800') + '">' + is.baslik + '</span>' +
+                                (is.saat ? '<span class="text-sm text-blue-600 bg-blue-50 px-2 py-0.5 rounded"><i class="far fa-clock mr-1"></i>' + is.saat + '</span>' : '') +
+                                (is.hatirlatma ? '<span class="text-sm text-amber-600 bg-amber-50 px-2 py-0.5 rounded"><i class="fas fa-bell mr-1"></i></span>' : '') +
+                            '</div>' +
+                            '<div class="flex items-center gap-3 text-sm text-gray-500 flex-wrap">' +
+                                '<span><i class="far fa-calendar mr-1"></i>' + new Date(is.tarih).toLocaleDateString('tr-TR') + '</span>' +
+                                '<span class="capitalize"><i class="fas fa-tag mr-1"></i>' + is.kategori + '</span>' +
+                                '<span class="' + (is.oncelik === 'yuksek' ? 'text-red-500' : is.oncelik === 'orta' ? 'text-amber-500' : 'text-green-500') + '">' +
+                                    (is.oncelik === 'yuksek' ? 'Yüksek' : is.oncelik === 'orta' ? 'Orta' : 'Düşük') +
+                                '</span>' +
+                            '</div>' +
+                        '</div>' +
+                        '<button onclick="deleteIs(\'' + is.id + '\')" class="text-gray-400 hover:text-red-500 transition-colors p-2"><i class="fas fa-trash"></i></button>' +
+                    '</div>' +
+                '</div>';
+            }).join('');
+        }
+
+        function openModal() {
+            document.getElementById('modal').classList.remove('hidden');
+            document.getElementById('modal').classList.add('flex');
+            document.getElementById('is-tarih').valueAsDate = new Date();
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.add('hidden');
+            document.getElementById('modal').classList.remove('flex');
+            document.getElementById('is-form').reset();
+        }
+
+        document.getElementById('is-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            var yeniIs = {
+                id: Date.now().toString(),
+                baslik: document.getElementById('is-baslik').value,
+                tarih: document.getElementById('is-tarih').value,
+                saat: document.getElementById('is-saat').value,
+                oncelik: document.getElementById('is-oncelik').value,
+                kategori: document.getElementById('is-kategori').value,
+                tamamlandi: false,
+                hatirlatma: document.getElementById('hatirlatma-ekle').checked,
+                olusturmaTarihi: new Date().toISOString()
+            };
+            
+            islerRef.once('value').then(function(snapshot) {
+                var mevcut = snapshot.val() || [];
+                mevcut.push(yeniIs);
+                return islerRef.set(mevcut);
+            }).then(function() {
+                // Hatırlatma eklendiyse
+                if (yeniIs.hatirlatma && yeniIs.saat) {
+                    hatirlatmalarRef.once('value').then(function(snapshot) {
+                        var mevcut = snapshot.val() || [];
+                        mevcut.push({
+                            id: Date.now().toString(),
+                            baslik: yeniIs.baslik,
+                            tarih: yeniIs.tarih,
+                            saat: yeniIs.saat,
+                            aciklama: '',
+                            tamamlandi: false
+                        });
+                        return hatirlatmalarRef.set(mevcut);
+                    });
+                }
+                closeModal();
+            });
+        });
+
+        function toggleTamamlandi(id) {
+            islerRef.once('value').then(function(snapshot) {
+                var mevcut = snapshot.val() || [];
+                var is = mevcut.find(function(i) { return i.id === id; });
+                if (is) {
+                    is.tamamlandi = !is.tamamlandi;
+                    return islerRef.set(mevcut);
+                }
+            });
+        }
+
+        function deleteIs(id) {
+            if (!confirm('Silinsin mi?')) return;
+            islerRef.once('value').then(function(snapshot) {
+                var mevcut = snapshot.val() || [];
+                mevcut = mevcut.filter(function(i) { return i.id !== id; });
+                return islerRef.set(mevcut);
+            });
+        }
+
+        function filterIsler(filter) {
+            currentFilter = filter;
+            document.querySelectorAll('.filtre-btn').forEach(function(btn) {
+                if (btn.dataset.filter === filter) {
+                    btn.classList.remove('bg-white', 'text-gray-600');
+                    btn.classList.add('bg-blue-600', 'text-white');
+                } else {
+                    btn.classList.remove('bg-blue-600', 'text-white');
+                    btn.classList.add('bg-white', 'text-gray-600');
+                }
+            });
+            islerRef.once('value').then(function(snapshot) {
+                renderIsler(snapshot.val() || []);
+            });
+        }
+
+        document.getElementById('modal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal();
+        });
+    </script>
+</body>
+</html>

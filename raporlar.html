@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raporlar - Kisisel Asistan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        * { font-family: 'Inter', sans-serif; }
+        
+        .glass {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    
+    <!-- Header -->
+    <header class="gradient-bg text-white shadow-lg">
+        <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+            <a href="anasayfa.html" class="flex items-center gap-3">
+                <i class="fas fa-arrow-left"></i>
+                <h1 class="text-xl font-bold">Raporlar</h1>
+            </a>
+        </div>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-4 py-6 space-y-6">
+        
+        <!-- Donem Secimi -->
+        <div class="glass rounded-2xl p-4">
+            <div class="flex gap-2">
+                <button onclick="setDonem('aylik')" id="btn-aylik" class="flex-1 py-2 bg-blue-600 text-white rounded-lg">Aylik</button>
+                <button onclick="setDonem('yillik')" id="btn-yillik" class="flex-1 py-2 bg-white text-gray-600 rounded-lg">Yillik</button>
+            </div>
+        </div>
+
+        <!-- Ozet Kartlar -->
+        <div class="glass rounded-2xl p-6">
+            <h2 class="text-lg font-bold text-gray-800 mb-4" id="ozet-baslik">Bu Ay Ozeti</h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="text-center p-4 bg-blue-50 rounded-xl">
+                    <div class="text-2xl font-bold text-blue-600" id="toplam-is">0</div>
+                    <div class="text-sm text-gray-600">Toplam Is</div>
+                </div>
+                <div class="text-center p-4 bg-green-50 rounded-xl">
+                    <div class="text-2xl font-bold text-green-600" id="tamamlanan-is">0</div>
+                    <div class="text-sm text-gray-600">Tamamlanan</div>
+                </div>
+                <div class="text-center p-4 bg-purple-50 rounded-xl">
+                    <div class="text-2xl font-bold text-purple-600" id="toplam-gelir">0 TL</div>
+                    <div class="text-sm text-gray-600">Toplam Gelir</div>
+                </div>
+                <div class="text-center p-4 bg-red-50 rounded-xl">
+                    <div class="text-2xl font-bold text-red-600" id="toplam-gider">0 TL</div>
+                    <div class="text-sm text-gray-600">Toplam Gider</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Grafikler -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="glass rounded-2xl p-6">
+                <h3 class="text-lg font-bold text-gray-800 mb-4">Gelir - Gider Karsilastirmasi</h3>
+                <canvas id="gelirGiderChart"></canvas>
+            </div>
+            <div class="glass rounded-2xl p-6">
+                <h3 class="text-lg font-bold text-gray-800 mb-4">Gider Kategorileri</h3>
+                <canvas id="kategoriChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Is Durumu -->
+        <div class="glass rounded-2xl p-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4">Is Tamamlama Orani</h3>
+            <div class="flex items-center gap-6">
+                <div class="w-32 h-32 relative">
+                    <canvas id="isChart"></canvas>
+                    <div class="absolute inset-0 flex items-center justify-center">
+                        <span class="text-2xl font-bold text-gray-800" id="tamamlama-orani">0%</span>
+                    </div>
+                </div>
+                <div class="flex-1 space-y-2">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Tamamlanan</span>
+                        <span class="font-bold text-green-600" id="tamamlanan-sayisi">0</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Bekleyen</span>
+                        <span class="font-bold text-amber-600" id="bekleyen-sayisi">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Haftalik Trend -->
+        <div class="glass rounded-2xl p-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4">Haftalik Harcama Trendi</h3>
+            <canvas id="trendChart"></canvas>
+        </div>
+
+        <!-- Kategori Detay -->
+        <div class="glass rounded-2xl p-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4">En Cok Harcama Yapilan Kategoriler</h3>
+            <div id="kategori-listesi" class="space-y-3">
+                <!-- Liste buraya -->
+            </div>
+        </div>
+
+        <!-- Veri Yonetimi -->
+        <div class="glass rounded-2xl p-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4">Veri Yonetimi</h3>
+            <div class="flex gap-3">
+                <button onclick="exportData()" class="flex-1 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                    <i class="fas fa-download mr-2"></i>Disa Aktar
+                </button>
+                <button onclick="importData()" class="flex-1 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    <i class="fas fa-upload mr-2"></i>Ice Aktar
+                </button>
+                <button onclick="clearAllData()" class="flex-1 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                    <i class="fas fa-trash mr-2"></i>Temizle
+                </button>
+            </div>
+            <input type="file" id="import-file" accept=".json" class="hidden" onchange="handleImport(this)">
+        </div>
+    </main>
+
+    <script>
+        // Giris kontrolu
+        if (sessionStorage.getItem('girisYapildi') !== 'true') {
+            window.location.href = 'index.html';
+        }
+
+        var currentDonem = 'aylik';
+        var charts = {};
+
+        function setDonem(donem) {
+            currentDonem = donem;
+            
+            document.getElementById('btn-aylik').className = donem === 'aylik' ? 
+                'flex-1 py-2 bg-blue-600 text-white rounded-lg' : 
+                'flex-1 py-2 bg-white text-gray-600 rounded-lg';
+            
+            document.getElementById('btn-yillik').className = donem === 'yillik' ? 
+                'flex-1 py-2 bg-blue-600 text-white rounded-lg' : 
+                'flex-1 py-2 bg-white text-gray-600 rounded-lg';
+            
+            document.getElementById('ozet-baslik').textContent = donem === 'aylik' ? 'Bu Ay Ozeti' : 'Bu Yil Ozeti';
+            
+            loadRaporlar();
+        }
+
+        function loadRaporlar() {
+            var isler = JSON.parse(localStorage.getItem('isler')) || [];
+            var butce = JSON.parse(localStorage.getItem('butce')) || [];
+            
+            var simdi = new Date();
+            var buAy = simdi.getMonth();
+            var buYil = simdi.getFullYear();
+            
+            // Filtrele
+            var filteredIsler = isler.filter(function(i) {
+                var d = new Date(i.tarih);
+                return currentDonem === 'aylik' ? 
+                    (d.getMonth() === buAy && d.getFullYear() === buYil) : 
+                    (d.getFullYear() === buYil);
+            });
+            
+            var filteredButce = butce.filter(function(b) {
+                var d = new Date(b.tarih);
+                return currentDonem === 'aylik' ? 
+                    (d.getMonth() === buAy && d.getFullYear() === buYil) : 
+                    (d.getFullYear() === buYil);
+            });
+            
+            // Is istatistikleri
+            var tamamlanan = filteredIsler.filter(function(i) { return i.tamamlandi; }).length;
+            var toplamIs = filteredIsler.length;
+            
+            document.getElementById('toplam-is').textContent = toplamIs;
+            document.getElementById('tamamlanan-is').textContent = tamamlanan;
+            document.getElementById('tamamlanan-sayisi').textContent = tamamlanan;
+            document.getElementById('bekleyen-sayisi').textContent = toplamIs - tamamlanan;
+            document.getElementById('tamamlama-orani').textContent = toplamIs > 0 ? 
+                Math.round((tamamlanan / toplamIs) * 100) + '%' : '0%';
+            
+            // Butce istatistikleri
+            var gelir = filteredButce.filter(function(b) { return b.tip === 'gelir'; })
+                .reduce(function(t, b) { return t + b.miktar; }, 0);
+            var gider = filteredButce.filter(function(b) { return b.tip === 'gider'; })
+                .reduce(function(t, b) { return t + b.miktar; }, 0);
+            
+            document.getElementById('toplam-gelir').textContent = gelir.toLocaleString() + ' TL';
+            document.getElementById('toplam-gider').textContent = gider.toLocaleString() + ' TL';
+            
+            // Grafikleri olustur
+            createGelirGiderChart(filteredButce);
+            createKategoriChart(filteredButce);
+            createIsChart(toplamIs, tamamlanan);
+            createTrendChart(filteredButce);
+            createKategoriListesi(filteredButce);
+        }
+
+        function createGelirGiderChart(data) {
+            var gelir = data.filter(function(b) { return b.tip === 'gelir'; })
+                .reduce(function(t, b) { return t + b.miktar; }, 0);
+            var gider = data.filter(function(b) { return b.tip === 'gider'; })
+                .reduce(function(t, b) { return t + b.miktar; }, 0);
+            
+            if (charts.gelirGider) charts.gelirGider.destroy();
+            
+            charts.gelirGider = new Chart(document.getElementById('gelirGiderChart'), {
+                type: 'bar',
+                data: {
+                    labels: ['Gelir', 'Gider'],
+                    datasets: [{
+                        data: [gelir, gider],
+                        backgroundColor: ['#10b981', '#ef4444']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        function createKategoriChart(data) {
+            var giderler = data.filter(function(b) { return b.tip === 'gider'; });
+            var kategoriler = {};
+            
+            giderler.forEach(function(g) {
+                kategoriler[g.kategori] = (kategoriler[g.kategori] || 0) + g.miktar;
+            });
+            
+            if (charts.kategori) charts.kategori.destroy();
+            
+            charts.kategori = new Chart(document.getElementById('kategoriChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(kategoriler),
+                    datasets: [{
+                        data: Object.values(kategoriler),
+                        backgroundColor: ['#ef4444', '#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ec4899']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 12 } }
+                    }
+                }
+            });
+        }
+
+        function createIsChart(toplam, tamamlanan) {
+            if (charts.is) charts.is.destroy();
+            
+            charts.is = new Chart(document.getElementById('isChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Tamamlanan', 'Bekleyen'],
+                    datasets: [{
+                        data: [tamamlanan, toplam - tamamlanan],
+                        backgroundColor: ['#10b981', '#f59e0b'],
+                        cutout: '70%'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        function createTrendChart(data) {
+            var haftalik = [0, 0, 0, 0];
+            
+            data.filter(function(b) { return b.tip === 'gider'; }).forEach(function(b) {
+                var gun = new Date(b.tarih).getDate();
+                var hafta = Math.min(Math.floor((gun - 1) / 7), 3);
+                haftalik[hafta] += b.miktar;
+            });
+            
+            if (charts.trend) charts.trend.destroy();
+            
+            charts.trend = new Chart(document.getElementById('trendChart'), {
+                type: 'line',
+                data: {
+                    labels: ['1. Hafta', '2. Hafta', '3. Hafta', '4. Hafta'],
+                    datasets: [{
+                        label: 'Harcama',
+                        data: haftalik,
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        }
+
+        function createKategoriListesi(data) {
+            var giderler = data.filter(function(b) { return b.tip === 'gider'; });
+            var kategoriler = {};
+            
+            giderler.forEach(function(g) {
+                kategoriler[g.kategori] = (kategoriler[g.kategori] || 0) + g.miktar;
+            });
+            
+            var sirali = Object.entries(kategoriler)
+                .sort(function(a, b) { return b[1] - a[1]; })
+                .slice(0, 5);
+            
+            var toplam = Object.values(kategoriler).reduce(function(a, b) { return a + b; }, 0);
+            var liste = document.getElementById('kategori-listesi');
+            
+            if (sirali.length === 0) {
+                liste.innerHTML = '<p class="text-gray-500 text-center">Harcama yok</p>';
+                return;
+            }
+            
+            var renkler = ['bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-green-500', 'bg-blue-500'];
+            
+            liste.innerHTML = sirali.map(function(item, index) {
+                var yuzde = (item[1] / toplam * 100).toFixed(1);
+                return '<div class="flex items-center gap-4">' +
+                    '<div class="w-8 h-8 rounded-full ' + renkler[index] + ' text-white flex items-center justify-center font-bold text-sm">' +
+                        (index + 1) +
+                    '</div>' +
+                    '<div class="flex-1">' +
+                        '<div class="flex justify-between mb-1">' +
+                            '<span class="font-medium text-gray-700">' + item[0] + '</span>' +
+                            '<span class="font-bold">' + item[1].toLocaleString() + ' TL</span>' +
+                        '</div>' +
+                        '<div class="h-2 bg-gray-200 rounded-full overflow-hidden">' +
+                            '<div class="h-full ' + renkler[index] + '" style="width: ' + yuzde + '%"></div>' +
+                        '</div>' +
+                        '<div class="text-xs text-gray-500 mt-1">% ' + yuzde + '</div>' +
+                    '</div>' +
+                '</div>';
+            }).join('');
+        }
+
+        function exportData() {
+            var data = {
+                isler: JSON.parse(localStorage.getItem('isler')) || [],
+                butce: JSON.parse(localStorage.getItem('butce')) || [],
+                hatirlatmalar: JSON.parse(localStorage.getItem('hatirlatmalar')) || [],
+                hedefler: JSON.parse(localStorage.getItem('hedefler')) || [],
+                exportTarihi: new Date().toISOString()
+            };
+            
+            var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'kisisel_asistan_yedek_' + new Date().toISOString().split('T')[0] + '.json';
+            a.click();
+            
+            alert('Veriler disa aktarildi!');
+        }
+
+        function importData() {
+            document.getElementById('import-file').click();
+        }
+
+        function handleImport(input) {
+            var file = input.files[0];
+            if (!file) return;
+            
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    var data = JSON.parse(e.target.result);
+                    
+                    if (confirm('Mevcut verilerin uzerine yazilsin mi?')) {
+                        if (data.isler) localStorage.setItem('isler', JSON.stringify(data.isler));
+                        if (data.butce) localStorage.setItem('butce', JSON.stringify(data.butce));
+                        if (data.hatirlatmalar) localStorage.setItem('hatirlatmalar', JSON.stringify(data.hatirlatmalar));
+                        if (data.hedefler) localStorage.setItem('hedefler', JSON.stringify(data.hedefler));
+                        
+                        alert('Veriler yuklendi!');
+                        loadRaporlar();
+                    }
+                } catch (err) {
+                    alert('Dosya okunamadi!');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function clearAllData() {
+            if (!confirm('TUM verileri silmek istediginize emin misiniz?')) return;
+            if (!confirm('Bu islem geri alinamaz! Emin misiniz?')) return;
+            
+            localStorage.removeItem('isler');
+            localStorage.removeItem('butce');
+            localStorage.removeItem('hatirlatmalar');
+            localStorage.removeItem('hedefler');
+            
+            alert('Tum veriler silindi!');
+            loadRaporlar();
+        }
+
+        loadRaporlar();
+    </script>
+</body>
+</html>

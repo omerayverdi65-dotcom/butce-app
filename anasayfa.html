@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Kişisel Asistan</title>
+    
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2098/2098402.png">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        * { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+        
+        .glass {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        .card-hover:active {
+            transform: scale(0.98);
+        }
+        
+        /* Mobil optimizasyonları */
+        @media (max-width: 640px) {
+            .mobile-safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+            .touch-target { min-height: 44px; min-width: 44px; }
+        }
+        
+        /* Offline göstergesi */
+        .offline-indicator {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: #f59e0b;
+            color: white;
+            text-align: center;
+            padding: 8px;
+            font-size: 14px;
+            z-index: 9999;
+            transform: translateY(-100%);
+            transition: transform 0.3s;
+        }
+        .offline-indicator.show { transform: translateY(0); }
+        
+        /* Pull-to-refresh animasyonu */
+        .ptr-element {
+            position: absolute;
+            top: -50px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 40px;
+            height: 40px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .ptr-element.visible { opacity: 1; }
+        .ptr-element.spin i { animation: spin 1s linear infinite; }
+        
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen mobile-safe-bottom">
+    
+    <!-- Offline Göstergesi -->
+    <div id="offline-indicator" class="offline-indicator">
+        <i class="fas fa-wifi-slash mr-2"></i>Çevrimdışı mod
+    </div>
+    
+    <!-- Header -->
+    <header class="gradient-bg text-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <i class="fas fa-user-circle text-2xl"></i>
+                <h1 class="text-xl font-bold">Kişisel Asistan</h1>
+            </div>
+            <div class="flex items-center gap-4">
+                <!-- Senkronizasyon durumu -->
+                <div id="sync-status" class="hidden text-xs bg-white/20 px-2 py-1 rounded">
+                    <i class="fas fa-check mr-1"></i>Senkronize
+                </div>
+                <button onclick="CloudSync.manualSync()" class="touch-target text-white/80 hover:text-white" title="Senkronize Et">
+                    <i class="fas fa-sync-alt" id="sync-icon"></i>
+                </button>
+                <button onclick="location.href='ayarlar.html'" class="touch-target text-white/80 hover:text-white" title="Ayarlar">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <button onclick="logout()" class="touch-target text-white/80 hover:text-white" title="Çıkış">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Ana Menu -->
+    <main class="max-w-6xl mx-auto px-4 py-6 relative">
+        
+        <!-- Pull to refresh alanı -->
+        <div id="ptr-element" class="ptr-element text-gray-400">
+            <i class="fas fa-spinner text-2xl"></i>
+        </div>
+        
+        <!-- Hos Geldin -->
+        <div class="mb-6 text-center">
+            <h2 class="text-2xl font-bold text-gray-800 mb-1">Hoş Geldiniz!</h2>
+            <p class="text-xs text-gray-400 mt-1">Senkronize edildi</p>
+        </div>
+
+        <!-- Hedef Ozeti -->
+        <div class="glass rounded-2xl p-4 mb-6">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-lg font-bold text-gray-800">Aylık Hedefler</h3>
+                <a href="hedefler.html" class="text-blue-600 text-sm hover:underline touch-target">Düzenle</a>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3" id="hedef-ozeti">
+                <!-- Hedefler buraya -->
+            </div>
+        </div>
+
+        <!-- Kartlar -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+            
+            <!-- Günlük İşler -->
+            <a href="isler.html" class="glass rounded-2xl p-5 card-hover cursor-pointer block touch-target">
+                <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mb-3">
+                    <i class="fas fa-tasks text-blue-600 text-xl"></i>
+                </div>
+                <h3 class="text-lg font-bold text-gray-800 mb-1">Günlük İşler</h3>
+                <p class="text-gray-600 text-xs mb-3">Yapılacaklar, hatırlatmalar</p>
+                <div class="flex items-center justify-between">
+                    <span class="text-2xl font-bold text-blue-600" id="bekleyen-isler">0</span>
+                    <span class="text-xs text-gray-500">bekleyen</span>
+                </div>
+            </a>
+
+            <!-- Bütçe Takibi -->
+            <a href="butce.html" class="glass rounded-2xl p-5 card-hover cursor-pointer block touch-target">
+                <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mb-3">
+                    <i class="fas fa-wallet text-green-600 text-xl"></i>
+                </div>
+                <h3 class="text-lg font-bold text-gray-800 mb-1">Bütçe Takibi</h3>
+                <p class="text-gray-600 text-xs mb-3">Gelir ve Gider yönetimi</p>
+                <div class="flex items-center justify-between">
+                    <span class="text-lg font-bold text-green-600" id="aylik-durum">+0 TL</span>
+                </div>
+            </a>
+
+            <!-- Raporlar -->
+            <a href="raporlar.html" class="glass rounded-2xl p-5 card-hover cursor-pointer block touch-target">
+                <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mb-3">
+                    <i class="fas fa-chart-pie text-purple-600 text-xl"></i>
+                </div>
+                <h3 class="text-lg font-bold text-gray-800 mb-1">Raporlar</h3>
+                <p class="text-gray-600 text-xs mb-3">Özet ve İstatistikler</p>
+                <div class="text-sm text-gray-500">
+                    <i class="fas fa-arrow-right mr-1"></i> Görüntüle
+                </div>
+            </a>
+        </div>
+
+        <!-- Bugün Özeti -->
+        <div class="glass rounded-2xl p-4 mb-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-3">Bugünün Özeti</h3>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="flex items-center gap-3 p-3 bg-blue-50 rounded-xl">
+                    <i class="fas fa-check-circle text-blue-600 text-lg"></i>
+                    <div>
+                        <div class="text-xs text-gray-600">Tamamlanan</div>
+                        <div class="text-xl font-bold text-blue-600" id="tamamlanan-isler">0</div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3 p-3 bg-green-50 rounded-xl">
+                    <i class="fas fa-lira-sign text-green-600 text-lg"></i>
+                    <div>
+                        <div class="text-xs text-gray-600">Harcama</div>
+                        <div class="text-xl font-bold text-green-600" id="gunluk-harcama">0 TL</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Son Hatırlatmalar -->
+        <div class="glass rounded-2xl p-4">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-lg font-bold text-gray-800">Yaklaşan Hatırlatmalar</h3>
+                <a href="hatirlatmalar.html" class="text-blue-600 text-sm hover:underline touch-target">Tümünü Gör</a>
+            </div>
+            <div id="hatirlatma-listesi" class="space-y-2">
+                <!-- Hatırlatmalar buraya -->
+            </div>
+        </div>
+        
+        <!-- Test Bildirim Butonu -->
+        <div class="mt-6 text-center">
+            <button onclick="NotificationManager.testNotification()" class="py-3 px-6 bg-purple-600 text-white rounded-lg hover:bg-purple-700 touch-target">
+                <i class="fas fa-bell mr-2"></i>Test Bildirimi
+            </button>
+        </div>
+        
+        <!-- Boşluk (mobil için) -->
+        <div class="h-20"></div>
+    </main>
+
+    <!-- Mobil Bottom Navigation -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-2 mobile-safe-bottom z-50 md:hidden">
+        <div class="flex justify-around items-center">
+            <a href="anasayfa.html" class="flex flex-col items-center text-blue-600 touch-target p-2">
+                <i class="fas fa-home text-xl mb-1"></i>
+                <span class="text-xs">Ana Sayfa</span>
+            </a>
+            <a href="isler.html" class="flex flex-col items-center text-gray-400 hover:text-blue-600 touch-target p-2">
+                <i class="fas fa-tasks text-xl mb-1"></i>
+                <span class="text-xs">İşler</span>
+            </a>
+            <a href="butce.html" class="flex flex-col items-center text-gray-400 hover:text-blue-600 touch-target p-2">
+                <i class="fas fa-wallet text-xl mb-1"></i>
+                <span class="text-xs">Bütçe</span>
+            </a>
+            <a href="raporlar.html" class="flex flex-col items-center text-gray-400 hover:text-blue-600 touch-target p-2">
+                <i class="fas fa-chart-pie text-xl mb-1"></i>
+                <span class="text-xs">Raporlar</span>
+            </a>
+        </div>
+    </nav>
+
+    <script src="sync.js"></script>
+    <script src="notifications.js"></script>
+    <script>
+        // Giriş kontrolü
+        if (sessionStorage.getItem('girisYapildi') !== 'true') {
+            window.location.href = 'index.html';
+        }
+
+        // Tarih göster
+        document.getElementById('tarih-gosterim').textContent = new Date().toLocaleDateString('tr-TR', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+
+        // Son senkronizme zamanı
+        function updateSyncTime() {
+            var lastSync = localStorage.getItem('lastSync');
+            if (lastSync) {
+                var date = new Date(parseInt(lastSync));
+                document.getElementById('son-senkronizme').textContent = 
+                    'Son senkronizme: ' + date.toLocaleTimeString('tr-TR');
+            }
+        }
+        updateSyncTime();
+
+        // Pull to refresh
+        var touchStartY = 0;
+        var ptrElement = document.getElementById('ptr-element');
+        
+        document.addEventListener('touchstart', function(e) {
+            if (window.scrollY === 0) {
+                touchStartY = e.touches[0].clientY;
+            }
+        });
+        
+        document.addEventListener('touchmove', function(e) {
+            if (window.scrollY === 0 && touchStartY > 0) {
+                var diff = e.touches[0].clientY - touchStartY;
+                if (diff > 50) {
+                    ptrElement.classList.add('visible');
+                }
+                if (diff > 150) {
+                    ptrElement.classList.add('spin');
+                }
+            }
+        });
+        
+        document.addEventListener('touchend', function(e) {
+            if (ptrElement.classList.contains('spin')) {
+                CloudSync.manualSync().then(function() {
+                    ptrElement.classList.remove('visible', 'spin');
+                    updateSyncTime();
+                    loadSummary();
+                });
+            } else {
+                ptrElement.classList.remove('visible', 'spin');
+            }
+            touchStartY = 0;
+        });
+
+        function loadSummary() {
+            // İşler
+            var isler = JSON.parse(localStorage.getItem('isler')) || [];
+            var bekleyen = isler.filter(function(i) { return !i.tamamlandi; }).length;
+            var tamamlanan = isler.filter(function(i) { 
+                return i.tamamlandi && i.tarih === new Date().toISOString().split('T')[0]; 
+            }).length;
+            
+            document.getElementById('bekleyen-isler').textContent = bekleyen;
+            document.getElementById('tamamlanan-isler').textContent = tamamlanan;
+
+            // Bütçe
+            var butce = JSON.parse(localStorage.getItem('butce')) || [];
+            var buAy = new Date().getMonth();
+            var buYil = new Date().getFullYear();
+            
+            var aylikGelir = butce.filter(function(b) { 
+                return b.tip === 'gelir' && new Date(b.tarih).getMonth() === buAy && new Date(b.tarih).getFullYear() === buYil;
+            }).reduce(function(t, b) { return t + b.miktar; }, 0);
+            
+            var aylikGider = butce.filter(function(b) { 
+                return b.tip === 'gider' && new Date(b.tarih).getMonth() === buAy && new Date(b.tarih).getFullYear() === buYil;
+            }).reduce(function(t, b) { return t + b.miktar; }, 0);
+            
+            var durum = aylikGelir - aylikGider;
+            var durumEl = document.getElementById('aylik-durum');
+            durumEl.textContent = (durum >= 0 ? '+' : '') + durum.toLocaleString() + ' TL';
+            durumEl.className = 'text-lg font-bold ' + (durum >= 0 ? 'text-green-600' : 'text-red-600');
+
+            // Günlük harcama
+            var bugun = new Date().toISOString().split('T')[0];
+            var gunlukHarcama = butce.filter(function(b) { 
+                return b.tip === 'gider' && b.tarih === bugun; 
+            }).reduce(function(t, b) { return t + b.miktar; }, 0);
+            
+            document.getElementById('gunluk-harcama').textContent = gunlukHarcama.toLocaleString() + ' TL';
+
+            // Hedefleri yükle
+            loadHedefler();
+            
+            // Hatırlatmaları yükle
+            loadHatirlatmalar();
+        }
+
+        function loadHedefler() {
+            var hedefler = JSON.parse(localStorage.getItem('hedefler')) || [];
+            var container = document.getElementById('hedef-ozeti');
+            container.innerHTML = '';
+            
+            if (hedefler.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 col-span-3 text-center py-4">Hedef bulunmuyor. <a href="hedefler.html" class="text-blue-600">Hedef ekleyin</a></p>';
+                return;
+            }
+            
+            hedefler.slice(0, 3).forEach(function(hedef) {
+                var yuzde = Math.min(100, Math.round((hedef.mevcut / hedef.hedef) * 100));
+                var html = '<div class="bg-gray-50 rounded-lg p-3">' +
+                    '<div class="flex justify-between text-sm mb-1">' +
+                        '<span class="font-medium text-gray-700 truncate">' + hedef.baslik + '</span>' +
+                        '<span class="text-gray-500">' + yuzde + '%</span>' +
+                    '</div>' +
+                    '<div class="h-2 bg-gray-200 rounded-full overflow-hidden">' +
+                        '<div class="h-full bg-blue-500 transition-all duration-500" style="width: ' + yuzde + '%"></div>' +
+                    '</div>' +
+                    '<div class="text-xs text-gray-500 mt-1">' + hedef.mevcut.toLocaleString() + ' / ' + hedef.hedef.toLocaleString() + ' TL</div>' +
+                '</div>';
+                container.innerHTML += html;
+            });
+        }
+
+        function loadHatirlatmalar() {
+            var hatirlatmalar = JSON.parse(localStorage.getItem('hatirlatmalar')) || [];
+            var container = document.getElementById('hatirlatma-listesi');
+            container.innerHTML = '';
+            var simdi = new Date();
+            
+            var yaklasan = hatirlatmalar.filter(function(h) {
+                var hatirlatmaTarihi = new Date(h.tarih + 'T' + h.saat);
+                return !h.tamamlandi && hatirlatmaTarihi > simdi;
+            }).sort(function(a, b) {
+                return new Date(a.tarih + 'T' + a.saat) - new Date(b.tarih + 'T' + b.saat);
+            }).slice(0, 3);
+            
+            if (yaklasan.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-center py-4 text-sm">Yaklaşan hatırlatma yok</p>';
+                return;
+            }
+            
+            yaklasan.forEach(function(h) {
+                var kalan = Math.ceil((new Date(h.tarih + 'T' + h.saat) - simdi) / (1000 * 60 * 60));
+                var kalanText = kalan < 24 ? kalan + ' saat sonra' : Math.ceil(kalan / 24) + ' gün sonra';
+                
+                var html = '<div class="flex items-center gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">' +
+                    '<i class="fas fa-bell text-amber-500"></i>' +
+                    '<div class="flex-1 min-w-0">' +
+                        '<div class="font-medium text-gray-800 text-sm truncate">' + h.baslik + '</div>' +
+                        '<div class="text-xs text-gray-500">' + kalanText + '</div>' +
+                    '</div>' +
+                '</div>';
+                container.innerHTML += html;
+            });
+        }
+
+        function logout() {
+            if (confirm('Çıkış yapmak istediğinize emin misiniz?')) {
+                sessionStorage.removeItem('girisYapildi');
+                window.location.href = 'index.html';
+            }
+        }
+
+        // Online/Offline dinleme
+        window.addEventListener('online', function() {
+            document.getElementById('offline-indicator').classList.remove('show');
+            document.getElementById('sync-status').classList.remove('hidden');
+        });
+        
+        window.addEventListener('offline', function() {
+            document.getElementById('offline-indicator').classList.add('show');
+            document.getElementById('sync-status').classList.add('hidden');
+        });
+        
+        if (!navigator.onLine) {
+            document.getElementById('offline-indicator').classList.add('show');
+        }
+
+        loadSummary();
+    </script>
+</body>
+</html>

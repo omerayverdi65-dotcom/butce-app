@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Takvim - Kişisel Asistan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        * { font-family: 'Inter', sans-serif; }
+        
+        .glass {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .takvim-gun {
+            min-height: 80px;
+            transition: all 0.2s;
+        }
+        .takvim-gun:hover {
+            background: #f3f4f6;
+        }
+        .takvim-gun.bugun {
+            background: #eff6ff;
+            border: 2px solid #3b82f6;
+        }
+        .takvim-gun.diger-ay {
+            color: #9ca3af;
+            background: #f9fafb;
+        }
+        
+        .gelir-tag {
+            background: #d1fae5;
+            color: #059669;
+            font-size: 10px;
+            padding: 2px 4px;
+            border-radius: 4px;
+            margin-top: 2px;
+        }
+        
+        .gider-tag {
+            background: #fee2e2;
+            color: #dc2626;
+            font-size: 10px;
+            padding: 2px 4px;
+            border-radius: 4px;
+            margin-top: 2px;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    
+    <header class="gradient-bg text-white shadow-lg">
+        <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+            <a href="anasayfa.html" class="flex items-center gap-3">
+                <i class="fas fa-arrow-left"></i>
+                <h1 class="text-xl font-bold">Gelir/Gider Takvimi</h1>
+            </a>
+            <div class="flex gap-2">
+                <button onclick="oncekiAy()" class="bg-white/20 px-3 py-1 rounded-lg">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <span id="ay-baslik" class="font-bold px-4"></span>
+                <button onclick="sonrakiAy()" class="bg-white/20 px-3 py-1 rounded-lg">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-4 py-6">
+        
+        <!-- Özet Kart -->
+        <div class="glass rounded-2xl p-4 mb-6">
+            <div class="grid grid-cols-3 gap-4 text-center">
+                <div>
+                    <div class="text-sm text-gray-500">Gelir</div>
+                    <div class="text-lg font-bold text-green-600" id="aylik-gelir">0 TL</div>
+                </div>
+                <div>
+                    <div class="text-sm text-gray-500">Gider</div>
+                    <div class="text-lg font-bold text-red-600" id="aylik-gider">0 TL</div>
+                </div>
+                <div>
+                    <div class="text-sm text-gray-500">Net</div>
+                    <div class="text-lg font-bold" id="aylik-net">0 TL</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Takvim -->
+        <div class="glass rounded-2xl p-4">
+            <div class="grid grid-cols-7 gap-1 mb-2 text-center text-sm font-bold text-gray-500">
+                <div>Pzt</div><div>Sal</div><div>Çar</div><div>Per</div><div>Cum</div><div>Cmt</div><div>Paz</div>
+            </div>
+            <div id="takvim-grid" class="grid grid-cols-7 gap-1">
+                <!-- Günler buraya -->
+            </div>
+        </div>
+
+        <!-- Detay Modal -->
+        <div id="detay-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
+            <div class="glass rounded-2xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold" id="secili-tarih"></h3>
+                    <button onclick="kapatModal()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+                <div id="gun-detaylari" class="space-y-2">
+                    <!-- Detaylar buraya -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        if (sessionStorage.getItem('girisYapildi') !== 'true') {
+            window.location.href = 'index.html';
+        }
+
+        var currentDate = new Date();
+        var butce = JSON.parse(localStorage.getItem('butce')) || [];
+
+        function renderTakvim() {
+            var yil = currentDate.getFullYear();
+            var ay = currentDate.getMonth();
+            
+            document.getElementById('ay-baslik').textContent = 
+                new Date(yil, ay).toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
+            
+            var ilkGun = new Date(yil, ay, 1);
+            var sonGun = new Date(yil, ay + 1, 0);
+            var baslangicPzt = ilkGun.getDay() === 0 ? 6 : ilkGun.getDay() - 1;
+            
+            var grid = document.getElementById('takvim-grid');
+            grid.innerHTML = '';
+            
+            var aylikGelir = 0;
+            var aylikGider = 0;
+            
+            // Boş günler (önceki ay)
+            for (var i = 0; i < baslangicPzt; i++) {
+                var oncekiAySonGun = new Date(yil, ay, 0).getDate() - baslangicPzt + i + 1;
+                grid.innerHTML += '<div class="takvim-gun diger-ay p-2 rounded-lg">' + oncekiAySonGun + '</div>';
+            }
+            
+            // Ayın günleri
+            var bugun = new Date();
+            for (var gun = 1; gun <= sonGun.getDate(); gun++) {
+                var tarih = yil + '-' + String(ay + 1).padStart(2, '0') + '-' + String(gun).padStart(2, '0');
+                var gunVerileri = butce.filter(function(b) { return b.tarih === tarih; });
+                
+                var gunGelir = gunVerileri.filter(function(b) { return b.tip === 'gelir'; }).reduce(function(t, b) { return t + b.miktar; }, 0);
+                var gunGider = gunVerileri.filter(function(b) { return b.tip === 'gider'; }).reduce(function(t, b) { return t + b.miktar; }, 0);
+                
+                aylikGelir += gunGelir;
+                aylikGider += gunGider;
+                
+                var isBugun = bugun.getDate() === gun && bugun.getMonth() === ay && bugun.getFullYear() === yil;
+                var className = 'takvim-gun p-2 rounded-lg cursor-pointer ' + (isBugun ? 'bugun' : 'bg-white');
+                
+                var html = '<div class="' + className + '" onclick="gunDetay(\'' + tarih + '\')">' +
+                    '<div class="font-bold text-sm">' + gun + '</div>';
+                
+                if (gunGelir > 0) {
+                    html += '<div class="gelir-tag">+' + gunGelir.toLocaleString() + '</div>';
+                }
+                if (gunGider > 0) {
+                    html += '<div class="gider-tag">-' + gunGider.toLocaleString() + '</div>';
+                }
+                
+                html += '</div>';
+                grid.innerHTML += html;
+            }
+            
+            // Sonraki ay boş günler
+            var kalan = (7 - ((baslangicPzt + sonGun.getDate()) % 7)) % 7;
+            for (var i = 1; i <= kalan; i++) {
+                grid.innerHTML += '<div class="takvim-gun diger-ay p-2 rounded-lg">' + i + '</div>';
+            }
+            
+            // Özet güncelle
+            document.getElementById('aylik-gelir').textContent = aylikGelir.toLocaleString() + ' TL';
+            document.getElementById('aylik-gider').textContent = aylikGider.toLocaleString() + ' TL';
+            var net = aylikGelir - aylikGider;
+            var netEl = document.getElementById('aylik-net');
+            netEl.textContent = (net >= 0 ? '+' : '') + net.toLocaleString() + ' TL';
+            netEl.className = 'text-lg font-bold ' + (net >= 0 ? 'text-green-600' : 'text-red-600');
+        }
+
+        function gunDetay(tarih) {
+            var veriler = butce.filter(function(b) { return b.tarih === tarih; });
+            var container = document.getElementById('gun-detaylari');
+            
+            document.getElementById('secili-tarih').textContent = new Date(tarih).toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' });
+            
+            if (veriler.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-center py-4">Kayıt yok</p>';
+            } else {
+                container.innerHTML = veriler.map(function(v) {
+                    return '<div class="flex justify-between items-center p-3 ' + (v.tip === 'gelir' ? 'bg-green-50' : 'bg-red-50') + ' rounded-lg">' +
+                        '<div>' +
+                            '<div class="font-medium">' + v.aciklama + '</div>' +
+                            '<div class="text-xs text-gray-500 capitalize">' + v.kategori + '</div>' +
+                        '</div>' +
+                        '<div class="font-bold ' + (v.tip === 'gelir' ? 'text-green-600' : 'text-red-600') + '">' +
+                            (v.tip === 'gelir' ? '+' : '-') + v.miktar.toLocaleString() + ' TL' +
+                        '</div>' +
+                    '</div>';
+                }).join('');
+            }
+            
+            document.getElementById('detay-modal').classList.remove('hidden');
+            document.getElementById('detay-modal').classList.add('flex');
+        }
+
+        function kapatModal() {
+            document.getElementById('detay-modal').classList.add('hidden');
+            document.getElementById('detay-modal').classList.remove('flex');
+        }
+
+        function oncekiAy() {
+            currentDate.setMonth(currentDate.getMonth() - 1);
+            renderTakvim();
+        }
+
+        function sonrakiAy() {
+            currentDate.setMonth(currentDate.getMonth() + 1);
+            renderTakvim();
+        }
+
+        document.getElementById('detay-modal').addEventListener('click', function(e) {
+            if (e.target === e.currentTarget) kapatModal();
+        });
+
+        renderTakvim();
+    </script>
+</body>
+</html>

@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hedefler - Kişisel Asistan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        * { font-family: 'Inter', sans-serif; }
+        .glass { background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); border: 1px solid rgba(0,0,0,0.1); }
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    
+    <header class="gradient-bg text-white shadow-lg">
+        <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+            <a href="anasayfa.html" class="flex items-center gap-3">
+                <i class="fas fa-arrow-left"></i>
+                <h1 class="text-xl font-bold">Aylık Hedefler</h1>
+            </a>
+            <div class="flex gap-2">
+                <button onclick="location.reload()" class="bg-white/20 px-3 py-2 rounded-lg" title="Yenile">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+                <button onclick="openModal()" class="bg-white/20 px-4 py-2 rounded-lg">
+                    <i class="fas fa-plus mr-2"></i>Yeni
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Liste -->
+    <main class="max-w-4xl mx-auto px-4 py-6">
+        <div id="hedef-listesi" class="space-y-4">
+            <p class="text-center text-gray-500 py-8">Yükleniyor...</p>
+        </div>
+        <div id="bos-mesaj" class="hidden text-center py-12">
+            <i class="fas fa-bullseye text-6xl text-gray-300 mb-4"></i>
+            <p class="text-gray-500">Hedef bulunmuyor</p>
+        </div>
+    </main>
+
+    <!-- Modal -->
+    <div id="modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
+        <div class="glass rounded-2xl p-6 w-full max-w-md">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Yeni Hedef</h2>
+            <form id="hedef-form" class="space-y-4">
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Hedef Adı</label>
+                    <input type="text" id="hedef-baslik" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" placeholder="Örn: Yeni Telefon">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Hedef Tutar (TL)</label>
+                    <input type="number" id="hedef-hedef" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" placeholder="10000">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Mevcut Tutar (TL)</label>
+                    <input type="number" id="hedef-mevcut" value="0" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" placeholder="0">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Bitiş Tarihi</label>
+                    <input type="date" id="hedef-tarih" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                </div>
+                <div class="flex gap-3 pt-4">
+                    <button type="button" onclick="closeModal()" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">İptal</button>
+                    <button type="submit" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Kaydet</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <script>
+        if (sessionStorage.getItem('girisYapildi') !== 'true') {
+            window.location.href = 'index.html';
+        }
+
+        // Firebase
+        var firebaseConfig = {
+            apiKey: "AIzaSyByyHF3X2mU4nB3tYJm9H3wnGbuXSqcfbk",
+            authDomain: "kisiselasistan-d8d06.firebaseapp.com",
+            databaseURL: "https://kisiselasistan-d8d06-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "kisiselasistan-d8d06",
+            storageBucket: "kisiselasistan-d8d06.firebasestorage.app",
+            messagingSenderId: "730314677424",
+            appId: "1:730314677424:web:4edb402170cd601f11af75"
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        var db = firebase.database();
+        var userId = 'benim_kullanici_id';
+        var hedeflerRef = db.ref('users/' + userId + '/hedefler');
+
+        // Gerçek zamanlı dinleme
+        hedeflerRef.on('value', function(snapshot) {
+            var hedefler = snapshot.val() || [];
+            localStorage.setItem('hedefler', JSON.stringify(hedefler));
+            renderHedefler(hedefler);
+        });
+
+        function renderHedefler(hedefler) {
+            var liste = document.getElementById('hedef-listesi');
+            var bosMesaj = document.getElementById('bos-mesaj');
+            
+            if (hedefler.length === 0) {
+                liste.innerHTML = '';
+                bosMesaj.classList.remove('hidden');
+                return;
+            }
+            
+            bosMesaj.classList.add('hidden');
+            
+            liste.innerHTML = hedefler.map(function(h) {
+                var yuzde = Math.min(100, Math.round((h.mevcut / h.hedef) * 100));
+                var kalan = h.hedef - h.mevcut;
+                
+                return '<div class="glass rounded-2xl p-6">' +
+                    '<div class="flex justify-between items-start mb-3">' +
+                        '<div>' +
+                            '<h3 class="text-lg font-bold text-gray-800">' + h.baslik + '</h3>' +
+                            '<p class="text-sm text-gray-500">Hedef: ' + h.hedef.toLocaleString() + ' TL</p>' +
+                        '</div>' +
+                        '<button onclick="deleteHedef(\'' + h.id + '\')" class="text-gray-400 hover:text-red-500"><i class="fas fa-trash"></i></button>' +
+                    '</div>' +
+                    '<div class="mb-2">' +
+                        '<div class="flex justify-between text-sm mb-1">' +
+                            '<span class="text-gray-600">' + h.mevcut.toLocaleString() + ' TL</span>' +
+                            '<span class="font-bold ' + (yuzde >= 100 ? 'text-green-600' : 'text-blue-600') + '">' + yuzde + '%</span>' +
+                        '</div>' +
+                        '<div class="h-3 bg-gray-200 rounded-full overflow-hidden">' +
+                            '<div class="h-full ' + (yuzde >= 100 ? 'bg-green-500' : 'bg-blue-500') + ' transition-all duration-500" style="width: ' + yuzde + '%"></div>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="flex justify-between items-center">' +
+                        '<span class="text-sm ' + (kalan > 0 ? 'text-amber-600' : 'text-green-600') + '">' +
+                            (kalan > 0 ? 'Kalan: ' + kalan.toLocaleString() + ' TL' : '✓ Hedef tamamlandı!') +
+                        '</span>' +
+                        '<div class="flex gap-2">' +
+                            '<button onclick="updateMevcut(\'' + h.id + '\', -100)" class="px-3 py-1 bg-red-100 text-red-600 rounded-lg text-sm">-100</button>' +
+                            '<button onclick="updateMevcut(\'' + h.id + '\', 100)" class="px-3 py-1 bg-green-100 text-green-600 rounded-lg text-sm">+100</button>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
+            }).join('');
+        }
+
+        function openModal() {
+            document.getElementById('modal').classList.remove('hidden');
+            document.getElementById('modal').classList.add('flex');
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.add('hidden');
+            document.getElementById('modal').classList.remove('flex');
+            document.getElementById('hedef-form').reset();
+        }
+
+        document.getElementById('hedef-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            var yeni = {
+                id: Date.now().toString(),
+                baslik: document.getElementById('hedef-baslik').value,
+                hedef: parseFloat(document.getElementById('hedef-hedef').value),
+                mevcut: parseFloat(document.getElementById('hedef-mevcut').value) || 0,
+                tarih: document.getElementById('hedef-tarih').value,
+                olusturmaTarihi: new Date().toISOString()
+            };
+            
+            hedeflerRef.once('value').then(function(snapshot) {
+                var mevcut = snapshot.val() || [];
+                mevcut.push(yeni);
+                return hedeflerRef.set(mevcut);
+            }).then(function() {
+                closeModal();
+            });
+        });
+
+        function updateMevcut(id, miktar) {
+            hedeflerRef.once('value').then(function(snapshot) {
+                var mevcut = snapshot.val() || [];
+                var hedef = mevcut.find(function(h) { return h.id === id; });
+                if (hedef) {
+                    hedef.mevcut = Math.max(0, Math.min(hedef.hedef, hedef.mevcut + miktar));
+                    return hedeflerRef.set(mevcut);
+                }
+            });
+        }
+
+        function deleteHedef(id) {
+            if (!confirm('Silinsin mi?')) return;
+            hedeflerRef.once('value').then(function(snapshot) {
+                var mevcut = snapshot.val() || [];
+                mevcut = mevcut.filter(function(h) { return h.id !== id; });
+                return hedeflerRef.set(mevcut);
+            });
+        }
+
+        document.getElementById('modal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal();
+        });
+    </script>
+</body>
+</html>
