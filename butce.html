@@ -268,17 +268,42 @@
         var userId = 'benim_kullanici_id';
         var butceRef = db.ref('users/' + userId + '/butce');
         var settingsRef = db.ref('users/' + userId + '/settings');
+        
+        // ============ BAĞLANTI KONTROLÜ ============
+        var isConnected = false;
+        
+        db.ref(".info/connected").on("value", function(snap) {
+            isConnected = snap.val();
+            if (isConnected) {
+                loadFromFirebase();
+            } else {
+                loadFromLocal();
+            }
+        });
+        
+        function loadFromFirebase() {
+            butceRef.once('value').then(function(snapshot) {
+                butceData = snapshot.val() || [];
+                localStorage.setItem('butce', JSON.stringify(butceData));
+                renderButce(butceData);
+            }).catch(function() {
+                loadFromLocal();
+            });
+        }
+        
+        function loadFromLocal() {
+            var localData = localStorage.getItem('butce');
+            butceData = localData ? JSON.parse(localData) : [];
+            renderButce(butceData);
+        }
 
-        // ============ DEĞİŞKENLER ============
         var currentFilter = 'hepsi';
         var currentTip = 'gelir';
+
         var currentView = 'list';
         var currentMonth = new Date();
         var butceData = [];
-        var isConnected = false;
-        var dataLoaded = false;
 
-        // Kategoriler
         var gelirKategorileri = [
             { value: 'maas', text: '💼 Maaş', icon: 'fa-briefcase' },
             { value: 'yatirim', text: '📈 Yatırım', icon: 'fa-chart-line' },
@@ -319,39 +344,8 @@
             { value: 'diger-gider', text: '➖ Diğer Gider', icon: 'fa-minus-circle' }
         ];
 
-        // ============ BAĞLANTI KONTROLÜ ============
-        db.ref(".info/connected").on("value", function(snap) {
-            isConnected = snap.val();
-            console.log("Bağlantı:", isConnected ? "ONLINE" : "OFFLINE");
-            
-            if (isConnected && !dataLoaded) {
-                loadFromFirebase();
-            } else if (!isConnected) {
-                loadFromLocal();
-            }
-        });
-
-        function loadFromFirebase() {
-            butceRef.once('value').then(function(snapshot) {
-                butceData = snapshot.val() || [];
-                localStorage.setItem('butce', JSON.stringify(butceData));
-                dataLoaded = true;
-                renderButce(butceData);
-            }).catch(function(error) {
-                console.error("Firebase hatası:", error);
-                loadFromLocal();
-            });
-        }
-        
-        function loadFromLocal() {
-            var localData = localStorage.getItem('butce');
-            butceData = localData ? JSON.parse(localData) : [];
-            renderButce(butceData);
-        }
-
-        // Gerçek zamanlı dinleme (sadece bağlıysa)
+        // Gerçek zamanlı dinleme
         butceRef.on('value', function(snapshot) {
-            if (!isConnected || !dataLoaded) return;
             butceData = snapshot.val() || [];
             localStorage.setItem('butce', JSON.stringify(butceData));
             if (currentView === 'list') {
@@ -373,8 +367,6 @@
             }
         });
 
-        // ============ FONKSİYONLAR ============
-        
         function renderButce(butce) {
             var liste = document.getElementById('butce-listesi');
             var bosMesaj = document.getElementById('bos-mesaj');
@@ -449,7 +441,7 @@
                 currentMonth.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
             
             var firstDay = new Date(year, month, 1).getDay();
-            firstDay = firstDay === 0 ? 6 : firstDay - 1;
+            firstDay = firstDay === 0 ? 6 : firstDay - 1; // Pazartesi başlangıç
             
             var daysInMonth = new Date(year, month + 1, 0).getDate();
             var today = new Date();
@@ -457,10 +449,12 @@
             var grid = document.getElementById('calendar-grid');
             grid.innerHTML = '';
             
+            // Boş günler
             for (var i = 0; i < firstDay; i++) {
                 grid.innerHTML += '<div></div>';
             }
             
+            // Günler
             for (var day = 1; day <= daysInMonth; day++) {
                 var dateStr = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
                 var dayTransactions = butceData.filter(function(b) { return b.tarih === dateStr; });
@@ -708,16 +702,23 @@
 
         function sendWeeklyReportNow() {
             var report = generateWeeklyReport();
-            var email = document.getElementById('report-email').value || 'kullanici@email.com';
+            
+            // EmailJS veya benzeri bir servis entegrasyonu gerekiyor
+            // Şimdilik mailto linki ile açıyoruz
+            var settings = {
+                email: document.getElementById('report-email').value || 'kullanici@email.com'
+            };
             
             var subject = 'Haftalık Bütçe Raporu - ' + new Date().toLocaleDateString('tr-TR');
             var body = 'Merhaba,\n\n' + report.text + '\n\nSaygılarımla,\nKişisel Asistan';
             
-            window.location.href = 'mailto:' + email + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+            window.location.href = 'mailto:' + settings.email + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
             
+            // Son gönderim tarihini kaydet
             settingsRef.child('emailReport/lastSent').set(new Date().toISOString());
         }
 
+        // Otomatik rapor kontrolü (sayfa yüklendiğinde)
         function checkAutoReport() {
             settingsRef.once('value').then(function(snapshot) {
                 var settings = snapshot.val() || {};
@@ -726,17 +727,21 @@
                 var now = new Date();
                 var lastSent = settings.emailReport.lastSent ? new Date(settings.emailReport.lastSent) : null;
                 
+                // Pazar günü mü kontrol et
                 if (now.getDay() !== 0) return;
                 
+                // Son gönderim bu hafta mı?
                 if (lastSent) {
                     var daysSinceLast = (now - lastSent) / (1000 * 60 * 60 * 24);
                     if (daysSinceLast < 7) return;
                 }
                 
+                // Saat kontrolü
                 var [targetHour, targetMin] = settings.emailReport.time.split(':');
                 if (now.getHours() < parseInt(targetHour)) return;
                 if (now.getHours() === parseInt(targetHour) && now.getMinutes() < parseInt(targetMin)) return;
                 
+                // Rapor gönder
                 sendWeeklyReportNow();
             });
         }
@@ -788,7 +793,7 @@
             });
         }
 
-        // Modal kapatma
+        // Modal dışına tıklama ile kapatma
         document.getElementById('modal').addEventListener('click', function(e) {
             if (e.target === this) closeModal();
         });
@@ -797,6 +802,7 @@
             if (e.target === this) closeSettings();
         });
 
+        // ESC tuşu ile kapatma
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
                 closeModal();
@@ -804,9 +810,11 @@
             }
         });
 
-        // Başlat
+        // Sayfa yüklendiğinde
         updateKategoriler();
         checkAutoReport();
+        
+        // Her saat otomatik rapor kontrolü
         setInterval(checkAutoReport, 3600000);
     </script>
 </body>
