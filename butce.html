@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bütçe Takibi - Kişisel Asistan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        * { font-family: 'Inter', sans-serif; }
+        .glass { background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); border: 1px solid rgba(0,0,0,0.1); }
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .card-hover { transition: all 0.3s ease; }
+        .card-hover:active { transform: scale(0.98); }
+        
+        /* Takvim Stilleri */
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+        .calendar-day { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 8px; font-size: 0.875rem; cursor: pointer; transition: all 0.2s; }
+        .calendar-day:hover { transform: scale(1.05); }
+        .calendar-day.has-income { background: #dcfce7; border: 2px solid #22c55e; }
+        .calendar-day.has-expense { background: #fee2e2; border: 2px solid #ef4444; }
+        .calendar-day.has-both { background: linear-gradient(135deg, #dcfce7 50%, #fee2e2 50%); border: 2px solid #f59e0b; }
+        .calendar-day.today { box-shadow: 0 0 0 2px #667eea; }
+        .calendar-header { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; font-weight: 600; color: #6b7280; font-size: 0.75rem; margin-bottom: 8px; }
+        
+        /* Animasyonlar */
+        @keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-slide-in { animation: slideIn 0.3s ease-out; }
+        
+        /* Toggle Switch */
+        .toggle-checkbox:checked { right: 0; border-color: #667eea; }
+        .toggle-checkbox:checked + .toggle-label { background-color: #667eea; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    
+    <header class="gradient-bg text-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+            <a href="anasayfa.html" class="flex items-center gap-3">
+                <i class="fas fa-arrow-left"></i>
+                <h1 class="text-xl font-bold">Bütçe Takibi</h1>
+            </a>
+            <div class="flex gap-2">
+                <button onclick="toggleView('list')" id="btn-list-view" class="bg-white/20 px-3 py-2 rounded-lg hover:bg-white/30" title="Liste Görünümü">
+                    <i class="fas fa-list"></i>
+                </button>
+                <button onclick="toggleView('calendar')" id="btn-calendar-view" class="bg-white/20 px-3 py-2 rounded-lg hover:bg-white/30" title="Takvim Görünümü">
+                    <i class="fas fa-calendar-alt"></i>
+                </button>
+                <button onclick="openSettings()" class="bg-white/20 px-3 py-2 rounded-lg hover:bg-white/30" title="Ayarlar">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <button onclick="location.reload()" class="bg-white/20 px-3 py-2 rounded-lg hover:bg-white/30" title="Yenile">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+                <button onclick="openModal()" class="bg-white/20 px-4 py-2 rounded-lg hover:bg-white/30">
+                    <i class="fas fa-plus mr-2"></i>Yeni
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-4 py-6">
+        <!-- Özet Kartlar -->
+        <div class="grid grid-cols-3 gap-3 mb-6">
+            <div class="glass rounded-2xl p-4 text-center card-hover">
+                <div class="text-sm text-gray-500 mb-1">Gelir</div>
+                <div class="text-lg font-bold text-green-600" id="toplam-gelir">0 TL</div>
+            </div>
+            <div class="glass rounded-2xl p-4 text-center card-hover">
+                <div class="text-sm text-gray-500 mb-1">Gider</div>
+                <div class="text-lg font-bold text-red-600" id="toplam-gider">0 TL</div>
+            </div>
+            <div class="glass rounded-2xl p-4 text-center card-hover">
+                <div class="text-sm text-gray-500 mb-1">Net</div>
+                <div class="text-xl font-bold" id="net-durum">0 TL</div>
+            </div>
+        </div>
+
+        <!-- Liste Görünümü -->
+        <div id="list-view">
+            <!-- Filtreler -->
+            <div class="flex gap-2 mb-6 overflow-x-auto pb-2">
+                <button onclick="filterButce('hepsi')" class="filtre-btn active px-4 py-2 bg-blue-600 text-white rounded-full text-sm whitespace-nowrap" data-filter="hepsi">Hepsi</button>
+                <button onclick="filterButce('gelir')" class="filtre-btn px-4 py-2 bg-white text-gray-600 rounded-full text-sm whitespace-nowrap" data-filter="gelir">Gelirler</button>
+                <button onclick="filterButce('gider')" class="filtre-btn px-4 py-2 bg-white text-gray-600 rounded-full text-sm whitespace-nowrap" data-filter="gider">Giderler</button>
+            </div>
+
+            <!-- Liste -->
+            <div id="butce-listesi" class="space-y-3">
+                <p class="text-center text-gray-500 py-8">Yükleniyor...</p>
+            </div>
+            
+            <div id="bos-mesaj" class="hidden text-center py-12">
+                <i class="fas fa-wallet text-6xl text-gray-300 mb-4"></i>
+                <p class="text-gray-500">Kayıt bulunmuyor</p>
+            </div>
+        </div>
+
+        <!-- Takvim Görünümü -->
+        <div id="calendar-view" class="hidden animate-slide-in">
+            <div class="glass rounded-2xl p-4 mb-4">
+                <div class="flex items-center justify-between mb-4">
+                    <button onclick="changeMonth(-1)" class="p-2 hover:bg-gray-100 rounded-lg">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <h2 id="calendar-month-year" class="text-lg font-bold text-gray-800"></h2>
+                    <button onclick="changeMonth(1)" class="p-2 hover:bg-gray-100 rounded-lg">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+                
+                <div class="calendar-header">
+                    <div>Pzt</div><div>Sal</div><div>Çar</div><div>Per</div><div>Cum</div><div>Cmt</div><div>Paz</div>
+                </div>
+                <div id="calendar-grid" class="calendar-grid"></div>
+                
+                <div class="flex gap-4 mt-4 justify-center text-xs">
+                    <div class="flex items-center gap-1"><div class="w-3 h-3 rounded bg-green-100 border border-green-500"></div> Gelir</div>
+                    <div class="flex items-center gap-1"><div class="w-3 h-3 rounded bg-red-100 border border-red-500"></div> Gider</div>
+                    <div class="flex items-center gap-1"><div class="w-3 h-3 rounded bg-gradient-to-br from-green-100 to-red-100 border border-yellow-500"></div> Her İkisi</div>
+                </div>
+            </div>
+            
+            <!-- Seçili Gün Detayı -->
+            <div id="selected-day-detail" class="glass rounded-2xl p-4 hidden">
+                <h3 class="font-bold text-gray-800 mb-3" id="selected-day-title"></h3>
+                <div id="selected-day-transactions" class="space-y-2"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Yeni Kayıt Modal -->
+    <div id="modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
+        <div class="glass rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Yeni Kayıt</h2>
+            <form id="butce-form" class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <button type="button" onclick="setTip('gelir')" id="btn-gelir" class="py-3 bg-green-100 text-green-700 rounded-xl border-2 border-green-500 font-medium">
+                        <i class="fas fa-arrow-down mr-2"></i>Gelir
+                    </button>
+                    <button type="button" onclick="setTip('gider')" id="btn-gider" class="py-3 bg-gray-100 text-gray-600 rounded-xl font-medium">
+                        <i class="fas fa-arrow-up mr-2"></i>Gider
+                    </button>
+                </div>
+                <input type="hidden" id="butce-tip" value="gelir">
+                
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Tutar (TL)</label>
+                    <input type="number" id="butce-miktar" required min="0" step="0.01" 
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-lg" 
+                        placeholder="0.00">
+                </div>
+                
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Açıklama</label>
+                    <input type="text" id="butce-aciklama" required 
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" 
+                        placeholder="Ne için?">
+                </div>
+                
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Kategori</label>
+                    <select id="butce-kategori" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 bg-white"></select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Tarih</label>
+                    <input type="date" id="butce-tarih" required 
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Not (Opsiyonel)</label>
+                    <textarea id="butce-not" rows="2" 
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" 
+                        placeholder="Ekstra not..."></textarea>
+                </div>
+                
+                <div class="flex gap-3 pt-2">
+                    <button type="button" onclick="closeModal()" class="flex-1 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium">İptal</button>
+                    <button type="submit" class="flex-1 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
+                        <i class="fas fa-save mr-2"></i>Kaydet
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Ayarlar Modal -->
+    <div id="settings-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
+        <div class="glass rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Ayarlar</h2>
+            
+            <div class="space-y-6">
+                <!-- Haftalık Rapor Ayarları -->
+                <div class="border-b pb-4">
+                    <h3 class="font-semibold text-gray-700 mb-3"><i class="fas fa-envelope mr-2 text-blue-500"></i>Haftalık E-posta Raporu</h3>
+                    
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm text-gray-600">Pazar günü rapor gönder</span>
+                        <div class="relative inline-block w-10 mr-2 align-middle select-none">
+                            <input type="checkbox" id="email-toggle" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer transition-all duration-300 left-0" onchange="toggleEmailReport()">
+                            <label for="email-toggle" class="toggle-label block overflow-hidden h-5 rounded-full bg-gray-300 cursor-pointer transition-colors duration-300"></label>
+                        </div>
+                    </div>
+                    
+                    <div id="email-settings" class="hidden space-y-3">
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">E-posta Adresi</label>
+                            <input type="email" id="report-email" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" placeholder="ornek@email.com">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">Rapor Saati</label>
+                            <input type="time" id="report-time" value="09:00" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                        </div>
+                        <button onclick="saveEmailSettings()" class="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+                            <i class="fas fa-save mr-2"></i>Ayarları Kaydet
+                        </button>
+                    </div>
+                    
+                    <div class="mt-3 p-3 bg-blue-50 rounded-lg text-xs text-blue-700">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        Sonraki rapor: <span id="next-report-date">-</span>
+                    </div>
+                </div>
+
+                <!-- Manuel Rapor Gönder -->
+                <div>
+                    <h3 class="font-semibold text-gray-700 mb-3"><i class="fas fa-paper-plane mr-2 text-green-500"></i>Manuel Rapor</h3>
+                    <button onclick="sendWeeklyReportNow()" class="w-full py-2 border border-green-500 text-green-600 rounded-lg hover:bg-green-50 text-sm">
+                        <i class="fas fa-send mr-2"></i>Şimdi Rapor Gönder
+                    </button>
+                </div>
+            </div>
+            
+            <button onclick="closeSettings()" class="w-full mt-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium">Kapat</button>
+        </div>
+    </div>
+
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <script>
+        // ============ GİRİŞ KONTROLÜ ============
+        var isLoggedIn = sessionStorage.getItem('girisYapildi') === 'true' || 
+                         localStorage.getItem('girisYapildi') === 'true';
+        
+        if (!isLoggedIn) {
+            localStorage.setItem('girisYapildi', 'true');
+        }
+
+        // ============ FIREBASE ============
+        var firebaseConfig = {
+            apiKey: "AIzaSyByyHF3X2mU4nB3tYJm9H3wnGbuXSqcfbk",
+            authDomain: "kisiselasistan-d8d06.firebaseapp.com",
+            databaseURL: "https://kisiselasistan-d8d06-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "kisiselasistan-d8d06",
+            storageBucket: "kisiselasistan-d8d06.firebasestorage.app",
+            messagingSenderId: "730314677424",
+            appId: "1:730314677424:web:4edb402170cd601f11af75"
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        var db = firebase.database();
+        var userId = 'benim_kullanici_id';
+        var butceRef = db.ref('users/' + userId + '/butce');
+        var settingsRef = db.ref('users/' + userId + '/settings');
+
+        // ============ DEĞİŞKENLER ============
+        var currentFilter = 'hepsi';
+        var currentTip = 'gelir';
+        var currentView = 'list';
+        var currentMonth = new Date();
+        var butceData = [];
+        var isConnected = false;
+        var dataLoaded = false;
+
+        // Kategoriler
+        var gelirKategorileri = [
+            { value: 'maas', text: '💼 Maaş', icon: 'fa-briefcase' },
+            { value: 'yatirim', text: '📈 Yatırım', icon: 'fa-chart-line' },
+            { value: 'kira-gelir', text: '🏠 Kiraya Verilen', icon: 'fa-home' },
+            { value: 'freelance', text: '💻 Freelance', icon: 'fa-laptop' },
+            { value: 'ikramiye', text: '🎁 İkramiye', icon: 'fa-gift' },
+            { value: 'hediye', text: '🎀 Para Hediyesi', icon: 'fa-hand-holding-heart' },
+            { value: 'geri-odeme', text: '↩️ Geri Ödeme', icon: 'fa-undo' },
+            { value: 'satis', text: '🛍️ Satış', icon: 'fa-shopping-bag' },
+            { value: 'komisyon', text: '💰 Komisyon', icon: 'fa-percent' },
+            { value: 'diger-gelir', text: '➕ Diğer Gelir', icon: 'fa-plus-circle' }
+        ];
+
+        var giderKategorileri = [
+            { value: 'kira-aidat', text: '🏠 Ev Kirası / Aidat', icon: 'fa-building' },
+            { value: 'elektrik', text: '⚡ Elektrik', icon: 'fa-bolt' },
+            { value: 'su', text: '💧 Su', icon: 'fa-tint' },
+            { value: 'dogalgaz', text: '🔥 Doğalgaz', icon: 'fa-fire' },
+            { value: 'internet-tv', text: '📡 İnternet / TV', icon: 'fa-wifi' },
+            { value: 'telefon', text: '📱 Telefon', icon: 'fa-mobile-alt' },
+            { value: 'market', text: '🛒 Market', icon: 'fa-shopping-cart' },
+            { value: 'restoran', text: '🍽️ Restoran / Cafe', icon: 'fa-utensils' },
+            { value: 'ulasim', text: '🚌 Ulaşım', icon: 'fa-bus' },
+            { value: 'akaryakit', text: '⛽ Akaryakıt', icon: 'fa-gas-pump' },
+            { value: 'sigorta', text: '🛡️ Sigorta', icon: 'fa-shield-alt' },
+            { value: 'saglik', text: '💊 Sağlık', icon: 'fa-pills' },
+            { value: 'egitim', text: '📚 Eğitim', icon: 'fa-graduation-cap' },
+            { value: 'giyim', text: '👕 Giyim', icon: 'fa-tshirt' },
+            { value: 'kisisel-bakim', text: '💇 Kişisel Bakım', icon: 'fa-cut' },
+            { value: 'eglence', text: '🎮 Eğlence', icon: 'fa-gamepad' },
+            { value: 'spor', text: '⚽ Spor', icon: 'fa-futbol' },
+            { value: 'hayvan', text: '🐕 Hayvan', icon: 'fa-paw' },
+            { value: 'bagis', text: '❤️ Bağış / Yardım', icon: 'fa-hand-holding-usd' },
+            { value: 'borc', text: '💳 Borç Ödeme', icon: 'fa-credit-card' },
+            { value: 'tatil', text: '✈️ Tatil / Seyahat', icon: 'fa-plane' },
+            { value: 'tamir-bakim', text: '🔧 Tamir / Bakım', icon: 'fa-tools' },
+            { value: 'cocuk', text: '👶 Çocuk Giderleri', icon: 'fa-baby' },
+            { value: 'diger-gider', text: '➖ Diğer Gider', icon: 'fa-minus-circle' }
+        ];
+
+        // ============ BAĞLANTI KONTROLÜ ============
+        db.ref(".info/connected").on("value", function(snap) {
+            isConnected = snap.val();
+            console.log("Bağlantı:", isConnected ? "ONLINE" : "OFFLINE");
+            
+            if (isConnected && !dataLoaded) {
+                loadFromFirebase();
+            } else if (!isConnected) {
+                loadFromLocal();
+            }
+        });
+
+        function loadFromFirebase() {
+            butceRef.once('value').then(function(snapshot) {
+                butceData = snapshot.val() || [];
+                localStorage.setItem('butce', JSON.stringify(butceData));
+                dataLoaded = true;
+                renderButce(butceData);
+            }).catch(function(error) {
+                console.error("Firebase hatası:", error);
+                loadFromLocal();
+            });
+        }
+        
+        function loadFromLocal() {
+            var localData = localStorage.getItem('butce');
+            butceData = localData ? JSON.parse(localData) : [];
+            renderButce(butceData);
+        }
+
+        // Gerçek zamanlı dinleme (sadece bağlıysa)
+        butceRef.on('value', function(snapshot) {
+            if (!isConnected || !dataLoaded) return;
+            butceData = snapshot.val() || [];
+            localStorage.setItem('butce', JSON.stringify(butceData));
+            if (currentView === 'list') {
+                renderButce(butceData);
+            } else {
+                renderCalendar();
+            }
+        });
+
+        // Ayarları yükle
+        settingsRef.on('value', function(snapshot) {
+            var settings = snapshot.val() || {};
+            if (settings.emailReport) {
+                document.getElementById('email-toggle').checked = settings.emailReport.enabled;
+                document.getElementById('report-email').value = settings.emailReport.email || '';
+                document.getElementById('report-time').value = settings.emailReport.time || '09:00';
+                document.getElementById('email-settings').classList.toggle('hidden', !settings.emailReport.enabled);
+                updateNextReportDate(settings.emailReport);
+            }
+        });
+
+        // ============ FONKSİYONLAR ============
+        
+        function renderButce(butce) {
+            var liste = document.getElementById('butce-listesi');
+            var bosMesaj = document.getElementById('bos-mesaj');
+            
+            var filtered = butce;
+            if (currentFilter === 'gelir') {
+                filtered = butce.filter(function(b) { return b.tip === 'gelir'; });
+            } else if (currentFilter === 'gider') {
+                filtered = butce.filter(function(b) { return b.tip === 'gider'; });
+            }
+            
+            updateSummary(butce);
+            
+            if (filtered.length === 0) {
+                liste.innerHTML = '';
+                bosMesaj.classList.remove('hidden');
+                return;
+            }
+            
+            bosMesaj.classList.add('hidden');
+            
+            liste.innerHTML = filtered.sort(function(a,b) { 
+                return new Date(b.tarih) - new Date(a.tarih); 
+            }).map(function(b) {
+                var kategoriList = b.tip === 'gelir' ? gelirKategorileri : giderKategorileri;
+                var kategori = kategoriList.find(function(k) { return k.value === b.kategori; }) || { text: b.kategori, icon: 'fa-tag' };
+                
+                return '<div class="glass rounded-xl p-4 card-hover flex items-center justify-between">' +
+                    '<div class="flex items-center gap-4">' +
+                        '<div class="w-12 h-12 rounded-full flex items-center justify-center text-xl ' + 
+                            (b.tip === 'gelir' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600') + '">' +
+                            '<i class="fas ' + kategori.icon + '"></i>' +
+                        '</div>' +
+                        '<div>' +
+                            '<div class="font-semibold text-gray-800">' + b.aciklama + '</div>' +
+                            '<div class="text-sm text-gray-500">' + kategori.text + ' • ' + formatTarih(b.tarih) + '</div>' +
+                            (b.not ? '<div class="text-xs text-gray-400 mt-1"><i class="fas fa-sticky-note mr-1"></i>' + b.not + '</div>' : '') +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="text-right">' +
+                        '<div class="font-bold text-lg ' + (b.tip === 'gelir' ? 'text-green-600' : 'text-red-600') + '">' +
+                            (b.tip === 'gelir' ? '+' : '-') + ' ' + b.miktar.toLocaleString('tr-TR', {minimumFractionDigits: 2}) + ' TL' +
+                        '</div>' +
+                        '<button onclick="silButce(' + b.id + ')" class="text-red-400 hover:text-red-600 mt-1">' +
+                            '<i class="fas fa-trash-alt"></i>' +
+                        '</button>' +
+                    '</div>' +
+                '</div>';
+            }).join('');
+        }
+
+        function updateSummary(butce) {
+            var gelir = 0, gider = 0;
+            butce.forEach(function(b) {
+                if (b.tip === 'gelir') gelir += b.miktar;
+                else gider += b.miktar;
+            });
+            
+            document.getElementById('toplam-gelir').textContent = gelir.toLocaleString('tr-TR', {minimumFractionDigits: 2}) + ' TL';
+            document.getElementById('toplam-gider').textContent = gider.toLocaleString('tr-TR', {minimumFractionDigits: 2}) + ' TL';
+            var net = gelir - gider;
+            var netEl = document.getElementById('net-durum');
+            netEl.textContent = (net >= 0 ? '+' : '') + net.toLocaleString('tr-TR', {minimumFractionDigits: 2}) + ' TL';
+            netEl.className = 'text-xl font-bold ' + (net >= 0 ? 'text-green-600' : 'text-red-600');
+        }
+
+        function renderCalendar() {
+            var year = currentMonth.getFullYear();
+            var month = currentMonth.getMonth();
+            
+            document.getElementById('calendar-month-year').textContent = 
+                currentMonth.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
+            
+            var firstDay = new Date(year, month, 1).getDay();
+            firstDay = firstDay === 0 ? 6 : firstDay - 1;
+            
+            var daysInMonth = new Date(year, month + 1, 0).getDate();
+            var today = new Date();
+            
+            var grid = document.getElementById('calendar-grid');
+            grid.innerHTML = '';
+            
+            for (var i = 0; i < firstDay; i++) {
+                grid.innerHTML += '<div></div>';
+            }
+            
+            for (var day = 1; day <= daysInMonth; day++) {
+                var dateStr = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+                var dayTransactions = butceData.filter(function(b) { return b.tarih === dateStr; });
+                
+                var hasIncome = dayTransactions.some(function(b) { return b.tip === 'gelir'; });
+                var hasExpense = dayTransactions.some(function(b) { return b.tip === 'gider'; });
+                
+                var classes = 'calendar-day';
+                if (hasIncome && hasExpense) classes += ' has-both';
+                else if (hasIncome) classes += ' has-income';
+                else if (hasExpense) classes += ' has-expense';
+                
+                if (today.getFullYear() === year && today.getMonth() === month && today.getDate() === day) {
+                    classes += ' today';
+                }
+                
+                var dayEl = document.createElement('div');
+                dayEl.className = classes;
+                dayEl.innerHTML = '<span>' + day + '</span>';
+                if (dayTransactions.length > 0) {
+                    dayEl.innerHTML += '<span class="text-xs mt-1">' + dayTransactions.length + '</span>';
+                }
+                dayEl.onclick = function(d, transactions) { 
+                    return function() { showDayDetail(d, transactions); };
+                }(day, dayTransactions);
+                
+                grid.appendChild(dayEl);
+            }
+        }
+
+        function showDayDetail(day, transactions) {
+            var detail = document.getElementById('selected-day-detail');
+            var title = document.getElementById('selected-day-title');
+            var container = document.getElementById('selected-day-transactions');
+            
+            var dateStr = currentMonth.getFullYear() + '-' + 
+                String(currentMonth.getMonth() + 1).padStart(2, '0') + '-' + 
+                String(day).padStart(2, '0');
+            
+            title.textContent = day + ' ' + currentMonth.toLocaleDateString('tr-TR', { month: 'long' }) + ' İşlemleri';
+            
+            if (transactions.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-sm">İşlem yok</p>';
+            } else {
+                container.innerHTML = transactions.map(function(b) {
+                    var kategoriList = b.tip === 'gelir' ? gelirKategorileri : giderKategorileri;
+                    var kategori = kategoriList.find(function(k) { return k.value === b.kategori; }) || { text: b.kategori, icon: 'fa-tag' };
+                    
+                    return '<div class="flex items-center justify-between p-2 rounded-lg ' + (b.tip === 'gelir' ? 'bg-green-50' : 'bg-red-50') + '">' +
+                        '<div class="flex items-center gap-2">' +
+                            '<i class="fas ' + kategori.icon + ' ' + (b.tip === 'gelir' ? 'text-green-600' : 'text-red-600') + '"></i>' +
+                            '<span class="text-sm font-medium">' + b.aciklama + '</span>' +
+                        '</div>' +
+                        '<span class="font-bold ' + (b.tip === 'gelir' ? 'text-green-600' : 'text-red-600') + '">' +
+                            (b.tip === 'gelir' ? '+' : '-') + b.miktar.toLocaleString('tr-TR', {minimumFractionDigits: 2}) + ' TL' +
+                        '</span>' +
+                    '</div>';
+                }).join('');
+            }
+            
+            detail.classList.remove('hidden');
+        }
+
+        function changeMonth(delta) {
+            currentMonth.setMonth(currentMonth.getMonth() + delta);
+            renderCalendar();
+            document.getElementById('selected-day-detail').classList.add('hidden');
+        }
+
+        function toggleView(view) {
+            currentView = view;
+            document.getElementById('list-view').classList.toggle('hidden', view !== 'list');
+            document.getElementById('calendar-view').classList.toggle('hidden', view !== 'calendar');
+            document.getElementById('btn-list-view').classList.toggle('bg-white/40', view === 'list');
+            document.getElementById('btn-calendar-view').classList.toggle('bg-white/40', view === 'calendar');
+            
+            if (view === 'calendar') {
+                renderCalendar();
+            } else {
+                renderButce(butceData);
+            }
+        }
+
+        function formatTarih(tarihStr) {
+            var tarih = new Date(tarihStr);
+            return tarih.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' });
+        }
+
+        function filterButce(filter) {
+            currentFilter = filter;
+            document.querySelectorAll('.filtre-btn').forEach(function(btn) {
+                if (btn.dataset.filter === filter) {
+                    btn.classList.remove('bg-white', 'text-gray-600');
+                    btn.classList.add('bg-blue-600', 'text-white');
+                } else {
+                    btn.classList.remove('bg-blue-600', 'text-white');
+                    btn.classList.add('bg-white', 'text-gray-600');
+                }
+            });
+            renderButce(butceData);
+        }
+
+        function setTip(tip) {
+            currentTip = tip;
+            document.getElementById('butce-tip').value = tip;
+            
+            var btnGelir = document.getElementById('btn-gelir');
+            var btnGider = document.getElementById('btn-gider');
+            
+            if (tip === 'gelir') {
+                btnGelir.className = 'py-3 bg-green-100 text-green-700 rounded-xl border-2 border-green-500 font-medium';
+                btnGider.className = 'py-3 bg-gray-100 text-gray-600 rounded-xl font-medium';
+            } else {
+                btnGelir.className = 'py-3 bg-gray-100 text-gray-600 rounded-xl font-medium';
+                btnGider.className = 'py-3 bg-red-100 text-red-700 rounded-xl border-2 border-red-500 font-medium';
+            }
+            
+            updateKategoriler();
+        }
+
+        function updateKategoriler() {
+            var select = document.getElementById('butce-kategori');
+            var kategoriler = currentTip === 'gelir' ? gelirKategorileri : giderKategorileri;
+            
+            select.innerHTML = kategoriler.map(function(k) {
+                return '<option value="' + k.value + '">' + k.text + '</option>';
+            }).join('');
+        }
+
+        function openModal() {
+            document.getElementById('modal').classList.remove('hidden');
+            document.getElementById('modal').classList.add('flex');
+            document.getElementById('butce-tarih').valueAsDate = new Date();
+            setTip('gelir');
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.add('hidden');
+            document.getElementById('modal').classList.remove('flex');
+            document.getElementById('butce-form').reset();
+        }
+
+        function openSettings() {
+            document.getElementById('settings-modal').classList.remove('hidden');
+            document.getElementById('settings-modal').classList.add('flex');
+        }
+
+        function closeSettings() {
+            document.getElementById('settings-modal').classList.add('hidden');
+            document.getElementById('settings-modal').classList.remove('flex');
+        }
+
+        function toggleEmailReport() {
+            var enabled = document.getElementById('email-toggle').checked;
+            document.getElementById('email-settings').classList.toggle('hidden', !enabled);
+        }
+
+        function saveEmailSettings() {
+            var email = document.getElementById('report-email').value;
+            var time = document.getElementById('report-time').value;
+            var enabled = document.getElementById('email-toggle').checked;
+            
+            if (enabled && !email) {
+                alert('Lütfen e-posta adresi girin');
+                return;
+            }
+            
+            var settings = {
+                emailReport: {
+                    enabled: enabled,
+                    email: email,
+                    time: time,
+                    lastSent: null
+                }
+            };
+            
+            settingsRef.set(settings).then(function() {
+                alert('Ayarlar kaydedildi!');
+                updateNextReportDate(settings.emailReport);
+            }).catch(function(error) {
+                alert('Hata: ' + error.message);
+            });
+        }
+
+        function updateNextReportDate(settings) {
+            if (!settings || !settings.enabled) {
+                document.getElementById('next-report-date').textContent = '-';
+                return;
+            }
+            
+            var now = new Date();
+            var nextSunday = new Date();
+            nextSunday.setDate(now.getDate() + (7 - now.getDay()) % 7);
+            if (nextSunday <= now) nextSunday.setDate(nextSunday.getDate() + 7);
+            
+            var [hours, minutes] = settings.time.split(':');
+            nextSunday.setHours(parseInt(hours), parseInt(minutes), 0);
+            
+            document.getElementById('next-report-date').textContent = 
+                nextSunday.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' }) + ' ' + settings.time;
+        }
+
+        function generateWeeklyReport() {
+            var oneWeekAgo = new Date();
+            oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+            
+            var weeklyData = butceData.filter(function(b) {
+                return new Date(b.tarih) >= oneWeekAgo;
+            });
+            
+            var gelir = 0, gider = 0;
+            var gelirList = [], giderList = [];
+            
+            weeklyData.forEach(function(b) {
+                if (b.tip === 'gelir') {
+                    gelir += b.miktar;
+                    gelirList.push(b);
+                } else {
+                    gider += b.miktar;
+                    giderList.push(b);
+                }
+            });
+            
+            var reportHTML = '<h2>📊 Haftalık Bütçe Raporunuz</h2>' +
+                '<p><strong>Tarih Aralığı:</strong> ' + oneWeekAgo.toLocaleDateString('tr-TR') + ' - ' + new Date().toLocaleDateString('tr-TR') + '</p>' +
+                '<hr>' +
+                '<h3>💰 Özet</h3>' +
+                '<ul>' +
+                '<li>Toplam Gelir: <strong style="color:green">' + gelir.toLocaleString('tr-TR', {minimumFractionDigits: 2}) + ' TL</strong></li>' +
+                '<li>Toplam Gider: <strong style="color:red">' + gider.toLocaleString('tr-TR', {minimumFractionDigits: 2}) + ' TL</strong></li>' +
+                '<li>Net Durum: <strong style="color:' + (gelir-gider >= 0 ? 'green' : 'red') + '">' + (gelir-gider).toLocaleString('tr-TR', {minimumFractionDigits: 2}) + ' TL</strong></li>' +
+                '</ul>' +
+                '<h3>📈 Gelirler (' + gelirList.length + ' işlem)</h3>' +
+                (gelirList.length > 0 ? '<ul>' + gelirList.map(function(b) {
+                    return '<li>' + b.tarih + ' - ' + b.aciklama + ': ' + b.miktar.toLocaleString('tr-TR', {minimumFractionDigits: 2}) + ' TL</li>';
+                }).join('') + '</ul>' : '<p>İşlem yok</p>') +
+                '<h3>📉 Giderler (' + giderList.length + ' işlem)</h3>' +
+                (giderList.length > 0 ? '<ul>' + giderList.map(function(b) {
+                    return '<li>' + b.tarih + ' - ' + b.aciklama + ': ' + b.miktar.toLocaleString('tr-TR', {minimumFractionDigits: 2}) + ' TL</li>';
+                }).join('') + '</ul>' : '<p>İşlem yok</p>') +
+                '<hr><p><small>Bu rapor Kişisel Asistan uygulaması tarafından otomatik oluşturulmuştur.</small></p>';
+            
+            return { html: reportHTML, text: reportHTML.replace(/<[^>]*>/g, ''), gelir: gelir, gider: gider };
+        }
+
+        function sendWeeklyReportNow() {
+            var report = generateWeeklyReport();
+            var email = document.getElementById('report-email').value || 'kullanici@email.com';
+            
+            var subject = 'Haftalık Bütçe Raporu - ' + new Date().toLocaleDateString('tr-TR');
+            var body = 'Merhaba,\n\n' + report.text + '\n\nSaygılarımla,\nKişisel Asistan';
+            
+            window.location.href = 'mailto:' + email + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+            
+            settingsRef.child('emailReport/lastSent').set(new Date().toISOString());
+        }
+
+        function checkAutoReport() {
+            settingsRef.once('value').then(function(snapshot) {
+                var settings = snapshot.val() || {};
+                if (!settings.emailReport || !settings.emailReport.enabled) return;
+                
+                var now = new Date();
+                var lastSent = settings.emailReport.lastSent ? new Date(settings.emailReport.lastSent) : null;
+                
+                if (now.getDay() !== 0) return;
+                
+                if (lastSent) {
+                    var daysSinceLast = (now - lastSent) / (1000 * 60 * 60 * 24);
+                    if (daysSinceLast < 7) return;
+                }
+                
+                var [targetHour, targetMin] = settings.emailReport.time.split(':');
+                if (now.getHours() < parseInt(targetHour)) return;
+                if (now.getHours() === parseInt(targetHour) && now.getMinutes() < parseInt(targetMin)) return;
+                
+                sendWeeklyReportNow();
+            });
+        }
+
+        document.getElementById('butce-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            var miktar = parseFloat(document.getElementById('butce-miktar').value);
+            var aciklama = document.getElementById('butce-aciklama').value.trim();
+            var kategori = document.getElementById('butce-kategori').value;
+            var tarih = document.getElementById('butce-tarih').value;
+            var not = document.getElementById('butce-not').value.trim();
+            var tip = document.getElementById('butce-tip').value;
+            
+            if (!miktar || miktar <= 0) {
+                alert('Lütfen geçerli bir tutar girin');
+                return;
+            }
+            
+            var yeniKayit = {
+                id: Date.now(),
+                miktar: miktar,
+                aciklama: aciklama,
+                kategori: kategori,
+                tarih: tarih,
+                not: not,
+                tip: tip,
+                olusturmaTarihi: new Date().toISOString()
+            };
+            
+            var mevcutButce = JSON.parse(localStorage.getItem('butce') || '[]');
+            mevcutButce.push(yeniKayit);
+            
+            butceRef.set(mevcutButce).then(function() {
+                closeModal();
+            }).catch(function(error) {
+                alert('Kayıt yapılırken hata oluştu: ' + error.message);
+            });
+        });
+
+        function silButce(id) {
+            if (!confirm('Bu kaydı silmek istediğinize emin misiniz?')) return;
+            
+            var mevcutButce = JSON.parse(localStorage.getItem('butce') || '[]');
+            var yeniButce = mevcutButce.filter(function(b) { return b.id !== id; });
+            
+            butceRef.set(yeniButce).catch(function(error) {
+                alert('Silme işlemi başarısız: ' + error.message);
+            });
+        }
+
+        // Modal kapatma
+        document.getElementById('modal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal();
+        });
+        
+        document.getElementById('settings-modal').addEventListener('click', function(e) {
+            if (e.target === this) closeSettings();
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeModal();
+                closeSettings();
+            }
+        });
+
+        // Başlat
+        updateKategoriler();
+        checkAutoReport();
+        setInterval(checkAutoReport, 3600000);
+    </script>
+</body>
+</html>
